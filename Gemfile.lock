@@ -1,0 +1,21 @@
+PATH
+  remote: ../bg_chrome
+  specs:
+    bg_chrome (0.1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+
+PLATFORMS
+  arm64-darwin-24
+  ruby
+
+DEPENDENCIES
+  bg_chrome!
+
+CHECKSUMS
+  bg_chrome (0.1.0)
+
+BUNDLED WITH
+  4.0.8

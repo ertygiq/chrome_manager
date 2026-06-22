@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+begin
+  ENV['BUNDLE_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)
+  require 'bundler/setup'
+rescue LoadError
+end
+require_relative '../lib/chrome_manager'
+
+cmd = ARGV.shift || 'help'
+manager = ChromeManager.new
+
+begin
+  result = case cmd
+           when 'lease'
+             lease = manager.lease
+             if ARGV.include?('--shell')
+               puts "export AGENT_BROWSER_SESSION=#{lease.fetch('session')}"
+               puts "export AGENT_BROWSER_CDP=#{lease.fetch('port')}"
+               exit 0
+             end
+             lease
+           when 'list'
+             manager.list
+           when 'release'
+             id = ARGV.shift or raise 'usage: chrome-manager release <id|session|port>'
+             manager.release(id)
+           when 'gc'
+             manager.gc
+           when 'help', '--help', '-h'
+             puts <<~HELP
+               Usage: chrome-manager <command>
+
+               Commands:
+                 lease [--shell]          Launch visible Chrome and return lease JSON
+                 list                     List active leases
+                 release <id|session|port> Stop Chrome and remove lease
+                 gc                       Remove dead leases
+
+               Agent usage:
+                 eval "$(chrome-manager lease --shell)"
+                 agent-browser --session "$AGENT_BROWSER_SESSION" connect "$AGENT_BROWSER_CDP"
+             HELP
+             exit 0
+           else
+             raise "unknown command: #{cmd}"
+           end
+
+  puts JSON.pretty_generate(result)
+rescue StandardError => e
+  warn "chrome-manager: #{e.message}"
+  exit 1
+end
