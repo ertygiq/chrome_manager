@@ -71,6 +71,12 @@ class ChromeManager
       lease = leases.find { |l| l['id'] == id || l['session'] == id || l['port'].to_s == id.to_s }
       raise "unknown lease: #{id}" unless lease
 
+      # Release means cleanup both layers: agent-browser session/daemon state and
+      # the real Chrome process. Close agent-browser first; if it is connected to
+      # the leased Chrome this may close it, and BgChrome#stop below is the
+      # fallback that kills any remaining profile-bound Chrome processes.
+      Open3.capture2e('agent-browser', '--session', lease.fetch('session'), 'close')
+
       BgChrome.new(
         user_data_dir: lease.fetch('userDataDir'),
         cdp_port: lease.fetch('port'),
@@ -132,24 +138,30 @@ class ChromeManager
   end
 
   def connect_agent_browser!(lease)
-    cdp_url = agent_browser_cdp_url(lease)
-    actual_port = cdp_url&.match(%r{127\.0\.0\.1:(\d+)})&.[](1)&.to_i
+    # Safety rule:
+    # Always reset the agent-browser session before connecting it to the leased
+    # Chrome. The same session name may be left over from a previous run, may be
+    # connected to agent-browser's own auto-launched Chrome, or may point at a
+    # stale/random CDP port after the agent-browser daemon restarted. A direct
+    # `connect <leased-port>` can report success without replacing that state
+    # reliably, so close first, then connect and verify.
+    Open3.capture2e('agent-browser', '--session', lease.fetch('session'), 'close')
+    sleep 1
 
-    # Recovery note:
-    # agent-browser keeps a per-session daemon. If that daemon dies or loses
-    # its CDP connection, the next plain `agent-browser --session X ...` command
-    # can silently auto-launch/connect to agent-browser's own Chrome on a random
-    # local port, instead of our leased real Chrome. In that drifted state,
-    # running `connect <leased-port>` directly is not reliable enough: first
-    # close the drifted agent-browser session, then reconnect it to the leased
-    # CDP port. But do NOT close when it is already pointed at the leased port,
-    # because that could close the real user-visible Chrome instance.
-    if actual_port && actual_port != lease.fetch('port').to_i
+    3.times do |attempt|
+      sleep 0.5 if attempt.positive?
+      ok = system('agent-browser', '--session', lease.fetch('session'), 'connect', lease.fetch('port').to_s, out: $stderr, err: $stderr)
+      raise 'agent-browser connect failed' unless ok
+
+      verified_url = agent_browser_cdp_url(lease)
+      verified_port = verified_url&.match(%r{127\.0\.0\.1:(\d+)})&.[](1)&.to_i
+      return if verified_port == lease.fetch('port').to_i
+
       Open3.capture2e('agent-browser', '--session', lease.fetch('session'), 'close')
+      sleep 1
     end
 
-    out, st = Open3.capture2e('agent-browser', '--session', lease.fetch('session'), 'connect', lease.fetch('port').to_s)
-    raise "agent-browser connect failed: #{out.strip}" unless st.success?
+    raise "agent-browser connect did not stick for session #{lease.fetch('session')}"
   end
 
   def agent_browser_cdp_url(lease)
