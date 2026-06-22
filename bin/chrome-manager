@@ -15,7 +15,7 @@ manager = ChromeManager.new
 begin
   result = case cmd
            when 'lease'
-             lease = manager.lease
+             lease = manager.lease(connect_agent_browser: ARGV.include?('--connect-agent-browser'))
              if ARGV.include?('--shell')
                puts "export AGENT_BROWSER_SESSION=#{lease.fetch('session')}"
                puts "export AGENT_BROWSER_CDP=#{lease.fetch('port')}"
@@ -29,13 +29,23 @@ begin
              manager.release(id)
            when 'gc'
              manager.gc
+           when 'check'
+             id = ARGV.shift or raise 'usage: chrome-manager check <id|session|port>'
+             manager.check(id)
+           when 'connect-agent-browser'
+             id = ARGV.shift or raise 'usage: chrome-manager connect-agent-browser <id|session|port>'
+             manager.connect_agent_browser(id)
            when 'help', '--help', '-h'
              puts <<~HELP
                Usage: chrome-manager <command>
 
                Commands:
-                 lease [--shell]          Launch visible Chrome and return lease JSON
+                 lease [--connect-agent-browser] [--shell]
+                                          Launch visible Chrome and return lease JSON
                  list                     List active leases
+                 check <id|session|port>  Verify agent-browser CDP points at lease port
+                 connect-agent-browser <id|session|port>
+                                          Connect/reconnect agent-browser to leased Chrome
                  release <id|session|port> Stop Chrome and remove lease
                  gc                       Remove dead leases
 
