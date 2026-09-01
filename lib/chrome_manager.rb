@@ -190,8 +190,12 @@ class ChromeManager
   def next_index(leases)
     used = leases.map { |l| l['id'].to_s[/\Abrowser-(\d+)\z/, 1].to_i }.reject(&:zero?)
     n = 1
-    n += 1 while used.include?(n)
-    n
+    loop do
+      profile = File.join(@profiles_dir, "browser-#{n}")
+      return n unless used.include?(n) || pids_for(profile).any?
+
+      n += 1
+    end
   end
 
   def next_port(leases)
