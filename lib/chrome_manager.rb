@@ -34,7 +34,6 @@ class ChromeManager
       chrome = BgChrome.new(
         user_data_dir: user_data_dir,
         cdp_port: port,
-        agent_browser_session: session,
         logger: NULL_LOGGER,
         auto_stop: false
       )
@@ -80,7 +79,6 @@ class ChromeManager
       BgChrome.new(
         user_data_dir: lease.fetch('userDataDir'),
         cdp_port: lease.fetch('port'),
-        agent_browser_session: lease['session'],
         logger: NULL_LOGGER,
         auto_stop: false
       ).stop
