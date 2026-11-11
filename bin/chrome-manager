@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'optparse'
 begin
   ENV['BUNDLE_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)
   require 'bundler/setup'
@@ -15,11 +16,16 @@ manager = ChromeManager.new
 begin
   result = case cmd
            when 'lease'
-             unknown = ARGV - ['--connect-agent-browser']
-             raise "unknown option(s) for lease: #{unknown.join(' ')}" unless unknown.empty?
+             proxy = nil
+             connect_agent_browser = false
+             OptionParser.new do |parser|
+               parser.on('--proxy URL') { |url| proxy = url }
+               parser.on('--connect-agent-browser') { connect_agent_browser = true }
+             end.parse!(ARGV)
+             raise "unknown option(s) for lease: #{ARGV.join(' ')}" unless ARGV.empty?
 
-             lease = manager.lease
-             manager.connect_agent_browser(lease.fetch('id')) if ARGV.include?('--connect-agent-browser')
+             lease = manager.lease(proxy: proxy)
+             manager.connect_agent_browser(lease.fetch('id')) if connect_agent_browser
              lease
            when 'list'
              raise "usage: chrome-manager list" unless ARGV.empty?
@@ -46,8 +52,9 @@ begin
                Usage: chrome-manager <command>
 
                Commands:
-                 lease [--connect-agent-browser]
+                 lease [--connect-agent-browser] [--proxy URL]
                                           Launch visible Chrome and return lease JSON
+                                          --proxy sets Chrome's proxy server
                  list                     List active leases
                  check <id|session|port>  Verify agent-browser CDP points at lease port
                  connect-agent-browser <id|session|port>

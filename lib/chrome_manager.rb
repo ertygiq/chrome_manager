@@ -20,7 +20,7 @@ class ChromeManager
     FileUtils.mkdir_p(@profiles_dir)
   end
 
-  def lease(connect_agent_browser: false)
+  def lease(connect_agent_browser: false, proxy: nil)
     with_lock do
       leases = load_leases
       leases = cleanup_dead(leases)
@@ -34,6 +34,7 @@ class ChromeManager
       chrome = BgChrome.new(
         user_data_dir: user_data_dir,
         cdp_port: port,
+        proxy: proxy,
         logger: NULL_LOGGER,
         auto_stop: false
       )
@@ -43,6 +44,7 @@ class ChromeManager
         'id' => id,
         'session' => session,
         'port' => port,
+        'proxy' => proxy,
         'cdp' => "http://127.0.0.1:#{port}",
         'pid' => chrome.main_pid,
         'userDataDir' => user_data_dir,
